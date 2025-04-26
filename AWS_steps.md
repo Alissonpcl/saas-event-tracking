@@ -1,5 +1,7 @@
 # AWS Implementation Guide
 
+![SaaS Events Tracking](saas-events-tracking.drawio.png)
+
 ## Creating the S3 Bucket
 
 1. Access the AWS console and navigate to the S3 service.
