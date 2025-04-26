@@ -1,43 +1,42 @@
 # AWS Implementation Guide
 
-## Criação do Bucket S3
+## Creating the S3 Bucket
 
-1. Acesse o console da AWS e navegue até o serviço S3
-1. Clique em "Criar bucket"
-1. Configure o bucket:
-    1. Nome: saas-event-tracking (use um nome único)
-    1. Região: selecione a mesma região para todos os serviços (ex: us-east-1)
-    1. Configurações de acesso: Bloquear acesso público (recomendado)
-    1. Versionamento: Opcional (habilite se desejar histórico de versões)
-    1. Criptografia: Habilite criptografia padrão SSE-S3
+1. Access the AWS console and navigate to the S3 service.
+1. Click on "Create bucket."
+1. Configure the bucket:
+    1. Name: saas-event-tracking (use a unique name).
+    1. Region: select the same region for all services (e.g., us-east-1).
+    1. Access settings: Block public access (recommended).
+    1. Versioning: Optional (enable if you want version history).
+    1. Encryption: Enable default SSE-S3 encryption.
 
+## Lambda Function
 
-## Função lambda
+### Create the Lambda Function
 
-### Criar a Função Lambda
+1. In the AWS console, navigate to the Lambda service.
+1. Click on "Create function."
+1. Select "Author from scratch."
+1. Configure the basic details:
+    1. Function name: saas-event-tracking-processor.
+    1. Runtime: Python 3.11 (or available version).
+    1. Architecture: x86_64.
+1. Under "Permissions," select "Create a new role with basic Lambda permissions."
+    1. This will create a role with basic CloudWatch Logs permissions.
+1. Click on "Create function."
 
-1. No console AWS, navegue até o serviço Lambda
-1. Clique em "Criar função"
-1. Selecione "Criar do zero" (Author from scratch)
-1. Configure os detalhes básicos:
-    1. Nome da função: event-tracking-processor
-    1. Runtime: Python 3.11 (ou versão disponível)
-    1. Arquitetura: x86_64
-1. Em "Permissões", selecione "Criar uma nova função com permissões básicas do Lambda"
-    1. Isso criará uma função com permissões básicas de CloudWatch Logs
-1. Clique em "Criar função"
+**Add S3 Permissions to the IAM Role**
 
-**Adicionar Permissões de S3 à Função IAM**
+After the Lambda function is created:
 
-Depois que a função Lambda for criada:
-
-1. Na página da função Lambda, role até "Configuração" e clique em "Permissões"
-1. Clique no nome da função de execução para abrir no console IAM
-1. No console IAM, clique em "Adicionar permissões" e depois em "Criar política em linha"
-1. Selecione a guia "JSON" e insira a política abaixo (você pode também manter o que já existe de permissões adicionando apenas o conteúdo de *Statement*):
+1. On the Lambda function page, scroll to "Configuration" and click on "Permissions."
+1. Click on the execution role name to open it in the IAM console.
+1. In the IAM console, click on "Add permissions" and then "Create inline policy."
+1. Select the "JSON" tab and insert the policy below (you can also keep existing permissions and add only the content of *Statement*):
 
 ```json
-json{
+{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -56,14 +55,14 @@ json{
 }
 ```
 
-1. Clique em "Revisar política"
-1. Dê um nome à política, como LambdaS3EventTracking
-1. Clique em "Criar política"
+1. Click on "Review policy."
+1. Name the policy, e.g., LambdaS3EventTracking.
+1. Click on "Create policy."
 
-### Configurar o Código da Função
+### Configure the Function Code
 
-1. Na tela da função recém-criada, role para baixo até a seção "Código da função"
-1. No editor de código, substitua o código padrão pelo código Python abaixo:
+1. On the newly created function page, scroll down to the "Function code" section.
+1. In the code editor, replace the default code with the Python code below:
 
 ```python
 import json
@@ -73,30 +72,30 @@ import os
 from datetime import datetime
 
 s3_client = boto3.client('s3')
-BUCKET_NAME = os.environ.get('BUCKET_NAME', 'your-event-tracking-bucket')  # Configure nas variáveis de ambiente
+BUCKET_NAME = os.environ.get('BUCKET_NAME', 'your-event-tracking-bucket')  # Configure in environment variables
 
 def lambda_handler(event, context):
     try:
-        # Obter o corpo da requisição
+        # Get the request body
         body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
         
-        # Validar se é um evento único ou um batch
+        # Validate if it's a single event or a batch
         events = body if isinstance(body, list) else [body]
         
-        # Adicionar timestamp de processamento se não existir
+        # Add processing timestamp if it doesn't exist
         for evt in events:
             if 'event_time' not in evt:
                 evt['event_time'] = datetime.utcnow().isoformat()
         
-        # Definir caminho do arquivo com particionamento
+        # Define file path with partitioning
         now = datetime.utcnow()
         year, month, day, hour = now.year, now.month, now.day, now.hour
         
-        # Criar um nome de arquivo único
+        # Create a unique file name
         file_name = f"events_{time.time_ns()}.json"
         key = f"events/year={year}/month={month:02d}/day={day:02d}/hour={hour:02d}/{file_name}"
         
-        # Salvar eventos no S3
+        # Save events to S3
         s3_client.put_object(
             Bucket=BUCKET_NAME,
             Key=key,
@@ -107,17 +106,17 @@ def lambda_handler(event, context):
         return {
             'statusCode': 200,
             'headers': {
-                'Access-Control-Allow-Origin': '*',  # Permitir CORS
+                'Access-Control-Allow-Origin': '*',  # Allow CORS
                 'Content-Type': 'application/json'
             },
             'body': json.dumps({
-                'message': f'Processado(s) {len(events)} evento(s) com sucesso',
+                'message': f'Successfully processed {len(events)} event(s)',
                 'events_count': len(events)
             })
         }
         
     except Exception as e:
-        print(f"Erro: {str(e)}")
+        print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {
@@ -125,38 +124,38 @@ def lambda_handler(event, context):
                 'Content-Type': 'application/json'
             },
             'body': json.dumps({
-                'message': f'Erro ao processar eventos: {str(e)}'
+                'message': f'Error processing events: {str(e)}'
             })
         }
 ```        
 
-### Configurar Variáveis de Ambiente
+### Configure Environment Variables
 
-1. Role para baixo até a seção "Variáveis de ambiente"
-1. Clique em "Editar"
-1. Adicione uma nova variável:
-    1. Chave: BUCKET_NAME
-    1. Valor: Nome do seu bucket S3 (ex: your-company-event-tracking)
-1. Clique em "Salvar"
+1. Scroll down to the "Environment variables" section.
+1. Click on "Edit."
+1. Add a new variable:
+    1. Key: BUCKET_NAME.
+    1. Value: saas-event-tracking
+1. Click on "Save."
 
-### Configurar as Configurações da Função
+### Configure Function Settings
 
-1. Role para cima e clique na aba "Configuração"
-1. Clique em "Configurações gerais" e depois em "Editar"
+1. Scroll up and click on the "Configuration" tab.
+1. Click on "General configuration" and then "Edit."
 1. Configure:
-    1. Memória: 128 MB (suficiente para este caso)
-    1. Timeout: 10 segundos (ajuste conforme necessário)
-    1. Simultaneidade reservada: (deixe como padrão)
-1. Clique em "Salvar"
+    1. Memory: 128 MB (sufficient for this case).
+    1. Timeout: 10 seconds (adjust as needed).
+    1. Reserved concurrency: (leave as default).
+1. Click on "Save."
 
-### Testar a Função
+### Test the Function
 
-1. Volte à página da função Lambda
-1. Clique em "Teste" na seção lateral Deploy
-1. Clique em "Criar novo evento"
-1. Configure o evento de teste:
-    1. Nome do evento: TestEventAPI
-    1. Corpo do evento:
+1. Go back to the Lambda function page.
+1. Click on "Test" in the side panel.
+1. Click on "Create new event."
+1. Configure the test event:
+    1. Event name: TestEventAPI.
+    1. Event body:
 
 ```json
 {
@@ -172,64 +171,64 @@ def lambda_handler(event, context):
 }
 ```
 
-1. Clique em "Salvar" e depois em "Testar"
-1. Verifique se o teste é bem-sucedido e se o arquivo foi criado no bucket S3
+1. Click on "Save" and then "Test."
+1. Verify that the test is successful and that the file was created in the S3 bucket.
 
-## API Getaway
+## API Gateway
 
-### Criar uma Nova API
+### Create a New API
 
-1. Na página inicial do API Gateway, clique no botão "Criar API"
-1. Selecione "API REST" e depois "Criar"
-1. Na tela de configuração:
-    1. Escolha "Nova API"
-    1. Nome da API: saas-event-tracking-api    
-    1. Tipo de endpoint: Regional
-1. Clique em "Criar API"
+1. On the API Gateway homepage, click the "Create API" button.
+1. Select "REST API" and then "Build."
+1. On the configuration screen:
+    1. Choose "New API."
+    1. API name: saas-event-tracking-api.
+    1. Endpoint type: Regional.
+1. Click on "Create API."
 
-### Criar um Recurso
+### Create a Resource
 
-1. Com a API criada, você estará na tela de recursos
-1. Clique no botão "Criar recurso"
-1. Configure o recurso:
-    1. Desmarque a opção Proxy resource
-    1. Nome do recurso: events
-    1. Caminho do recurso: /
-    1. Habilite a opção CORS
-1. Clique em "Criar recurso"
+1. With the API created, you will be on the resources screen.
+1. Click the "Create Resource" button.
+1. Configure the resource:
+    1. Uncheck the "Proxy resource" option.
+    1. Resource name: events.
+    1. Resource path: /.
+    1. Enable the CORS option.
+1. Click on "Create Resource."
 
-### Criar o Método POST
+### Create the POST Method
 
-1. Com o recurso /events selecionado, clique em "Criar método"
-1. No menu suspenso, selecione "POST" e clique no ícone de confirmação
-1. Configure o método:
-    1. Tipo de integração: Função Lambda
-    1. Função Lambda: Digite o nome da sua função Lambda (event-tracking-processor)
-    1. Tempo limite padrão: deixe como padrão (29 segundos)
-1. Clique em Criar método
+1. With the /events resource selected, click on "Create Method."
+1. In the dropdown menu, select "POST" and click the checkmark icon.
+1. Configure the method:
+    1. Integration type: Lambda Function.
+    1. Lambda Function: Enter the name of your Lambda function (event-tracking-processor).
+    1. Default timeout: leave as default (29 seconds).
+1. Click on "Create Method."
 
-### Configurar CORS (Cross-Origin Resource Sharing)
+### Configure CORS (Cross-Origin Resource Sharing)
 
-1. Selecione o recurso /events
-1. Clique no menu "Ações" e selecione "Habilitar CORS"
-1. Configure as opções de CORS:
-    1. Métodos ACCESS-CONTROL-ALLOW-ORIGIN: * (ou seu domínio específico para maior segurança)
-    1. ACCESS-CONTROL-ALLOW-HEADERS: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token
-    1. ACCESS-CONTROL-ALLOW-METHODS: Selecione POST e OPTIONS
-1. Clique em "Habilitar CORS e substituir os métodos existentes"
-1. Confirme clicando em "Sim, substituir existente"
+1. Select the /events resource.
+1. Click on the "Actions" menu and select "Enable CORS."
+1. Configure the CORS options:
+    1. ACCESS-CONTROL-ALLOW-ORIGIN: * (or your specific domain for better security).
+    1. ACCESS-CONTROL-ALLOW-HEADERS: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token.
+    1. ACCESS-CONTROL-ALLOW-METHODS: Select POST and OPTIONS.
+1. Click on "Enable CORS and replace existing methods."
+1. Confirm by clicking "Yes, replace existing."
 
-### Implantar a API
+### Deploy the API
 
-1. No menu "Ações", selecione "Implantar API"
-1. Na janela de implantação:
-    1. Estágio: [Novo estágio]
-    1. Nome do estágio: **prod** (ou outro nome de sua escolha)
-    1. Descrição do estágio: **Ambiente de produção**
-1. Clique em "Implantar"
+1. In the "Actions" menu, select "Deploy API."
+1. In the deployment window:
+    1. Stage: [New Stage].
+    1. Stage name: **prod** (or another name of your choice).
+    1. Stage description: **Production environment.**
+1. Click on "Deploy."
 
-### Obter URL da API
+### Get the API URL
 
-1. No menu lateral, clique em "Estágios"
-1. Selecione o estágio prod
-1. Anote a URL exibida na parte superior da página (Invocar URL)
+1. In the side menu, click on "Stages."
+1. Select the prod stage.
+1. Note the URL displayed at the top of the page (Invoke URL).
