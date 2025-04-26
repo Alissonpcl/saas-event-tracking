@@ -73,9 +73,31 @@ from datetime import datetime
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'your-event-tracking-bucket')  # Configure in environment variables
+AUTH_TOKEN = "qwe123-saas-tracking"  # Required auth token
 
 def lambda_handler(event, context):
     try:
+        # Check for the authentication token
+        # This is a simple example of how it can be done. 
+        # A better approach would be to look for a key of 
+        # an authenticated token in a cache (eg.: Redis, ElastiCache)
+        headers = event.get('headers', {}) or {}
+        auth_token = headers.get('x-auth-token')
+        
+        # Validate the auth token
+        if not auth_token or auth_token != AUTH_TOKEN:
+            return {
+                'statusCode': 401,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Content-Type': 'application/json'
+                },
+                'body': json.dumps({
+                    'message': 'Unauthorized: Invalid or missing authentication token',
+                    'headers': event
+                })
+            }
+        
         # Get the request body
         body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
         
@@ -204,7 +226,9 @@ def lambda_handler(event, context):
 1. Configure the method:
     1. Integration type: Lambda Function.
     1. Lambda Function: Enter the name of your Lambda function (event-tracking-processor).
-    1. Default timeout: leave as default (29 seconds).
+    1. Enable Lambda proxy integration
+        1. This is important so Api Getaway will pass request header to your Lambda function
+    1. Integration timeout: leave as default (29 seconds).
 1. Click on "Create Method."
 
 ### Configure CORS (Cross-Origin Resource Sharing)
