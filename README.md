@@ -1,5 +1,7 @@
 # About
 
+![SaaS Events Tracking](saas-events-tracking.drawio.png)
+
 This project provides a comprehensive step-by-step guide on configuring cloud infrastructure services to track events emitted by a SaaS application.
 
 The key objectives of this project are:
